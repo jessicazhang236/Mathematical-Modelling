@@ -59,6 +59,8 @@ def main(argv=None):
             pred += '_cubic_b-spline'
         elif args.type == 'euler_spiral':
             pred += '_euler_spiral'
+        elif args.type == 'polynomial':
+            pred += '_polynomial'
         pred += '_predictions.npy'
     display(tr_tgt, tst_tgt, pred)    
 
