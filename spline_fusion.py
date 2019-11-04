@@ -90,12 +90,13 @@ def matexp(v):
 def omega(pts, ind):
     return matlog(np.matmul(la.inv(R6toSE3(pts[ind - 1])), R6toSE3(pts[ind])))
 
-def pose_eval(t, ctr_pts):
+def pose_eval(t, T, ctr_pts):
     k = u(t)
+    u_ = t - T[k]
     ans = R6toSE3(ctr_pts[k - 1])
     for _j in range(3):
         j = _j + 1
-        ans = np.matmul(ans, matexp(B(t)[j] * omega(ctr_pts, k + j)))
+        ans = np.matmul(ans, matexp(B(u_)[j] * omega(ctr_pts, k + j)))
     return SE3toR6(ans)
 
 def n_coeff(t, _T):
@@ -138,7 +139,7 @@ def testing(fsrc, fgt, log, T, P):
     loss = 0.0
     pred = gt
     for i in range(src.size):
-        estimate = pose_eval(src[i], P)
+        estimate = pose_eval(src[i], T, P)
         # estimate = deBoor(src[i], T, P)
         loss += la.norm(np.subtract(estimate, gt[i]))
         pred[i] = estimate
@@ -186,9 +187,10 @@ def main(argv=None):
     
     T, N = setup(tr_src) # timestamps of all the control points and the coefficient matrix
     D = np.load(tr_tgt)
-    dim = D[0].size
+    # dim = D[0].size
     # P = np.matmul(np.linalg.inv(N), D) # control point array
     P = la.lstsq(N, D, rcond=-1)[0]
+    # P = D
     testing(tst_src, tst_tgt, log, T, P)
 
 if __name__ == '__main__':
