@@ -1,5 +1,5 @@
 import numpy as np
-import scipy.linalg as la
+import numpy.linalg as la
 import argparse
 
 dt = 0.01
@@ -7,13 +7,49 @@ start = 0.0
 end = 10.0
 n = 0
 p = 3
-dim = 3
+dim = 6
 
+log_list = np.array(['00f0ad9c-27c0-8bdb-1db1-2610fd01a788'])
+"""'0224916e-bb15-41bb-ef72-38a39923554a',
+'02990aeb-3649-3188-18b1-ffc47c03185c',
+'03548b25-b4bd-d3cb-7b21-a56887607ae8',
+'03d2ab0f-4dbc-8863-43cd-9071ed265189',
+'05cd1dc7-d73d-ed63-00e7-dbd51c900184',
+'067e62dc-fe8e-4109-eee9-8a70e2f037bc',
+'0696e5c3-9b1b-2754-1693-4d3c35e2c5c5',
+'0711a84c-edb3-eded-8fda-1fed9aeda4be',
+'082788fe-461e-4d30-fa94-efed1d508192',
+'08abc439-72fa-4c86-f266-954226e45877',
+'08c94aea-2b8d-40f3-d90b-8f6a732a296b',
+'09d9227e-08bd-dfc1-1a75-33a1953c2cc3',
+'0d367004-cd84-4946-fc72-a40d7c0aedb3',
+'0df8eef4-4352-86f5-07c3-317ba54348b4',
+'0f88ddc8-c2c0-4f44-1fc1-4e59310912be',
+'10f8e3b9-5ab7-5e56-97e0-4701a56965e3',
+'15ecd6e5-495e-747e-9d79-ebe6806f4fd3',
+'18257908-e088-4a08-c6cb-c7bbd2a47922',
+'239b269e-e15b-c7f6-3d26-e4df89497014',
+'27581d62-01d2-5cc6-462f-4440435f9fc5',
+'286310ad-bb7e-cefd-ebdf-c6d9e4715417',
+'2b998b1d-50b7-9d81-a898-7a44f0230572',
+'2bd6e8d5-112f-7ea7-c248-ae8507429e38',
+'41e6c9f9-f1bb-5cfb-e923-eddd05b08464',
+'432aa902-c28d-9e73-a6f5-31934a2f95d3',
+'43677200-e6f0-2051-5e6a-5e6fc3851fde',
+'4763a435-5887-4459-ee65-fb6075217a35',
+'4853043c-065a-462f-c9f0-67f8263a0eb6',
+'5da97c51-65cd-a987-dffb-8b7599aa0c0b',
+'632c320b-1b9e-de97-663e-1f78d0082617'])
+"""
 def u(t): # evaluates parametric value from timestamp
-    return (int)((t - start) * 1.0 / dt)
+    if t < start:
+        return 2
+    if t >= end:
+        return n + 3
+    return (int)((t - start) * 1.0 / dt) + 3
 
 def n_coeff(t, _T):
-    T = np.concatenate((_T, np.zeros((5))))
+    T = np.concatenate((_T, _T[_T.size - 1] * np.ones((8))))
     N = np.zeros(n + 2)
     if t == start:
         N[0] = 1.0
@@ -25,37 +61,47 @@ def n_coeff(t, _T):
     N[k] = 1.0
     for _ in range(p):
         d = _ + 1
-        N[k-d] = N[k-d+1] * (T[k+1] - t) / (T[k+1] - T[k-d+1])
+        if T[k+1] != T[k-d+1]:
+            N[k-d] = N[k-d+1] * (T[k+1] - t) / (T[k+1] - T[k-d+1])
         i = k - d + 1
         while (i <= k - 1):
-            N[i] = N[i] * (t - T[i]) / (T[i+d] - T[i]) + N[i+1] * (T[i+d+1] - t) / (T[i+d+1] - T[i+1])
+            if T[i+d] != T[i] and T[i+d+1] != T[i+1]:
+                N[i] = N[i] * (t - T[i]) / (T[i+d] - T[i]) + N[i+1] * (T[i+d+1] - t) / (T[i+d+1] - T[i+1])
             i += 1
-        N[k] *= (t - T[k]) / (T[k+d] - T[k])
+        if T[k+d] != T[k]:
+            N[k] *= (t - T[k]) / (T[k+d] - T[k])
     return N
 
-def setup(src): # setting the global values
+def setup(time_src): # setting the global values
+    # time_src = np.load(ftime_src)
     global dt, start, end, n
-    time_src = np.load(src)
     start = time_src[0]
     n = time_src.size - 1
     end = time_src[n]
     dt = (end - start) * 1.0 / n
-    T = np.concatenate((np.arange(start, end, dt), np.asarray([end])))
-    N = np.zeros((n + 1, n + 1))
-    for i in range(n + 1):
-        N[i] = n_coeff(T[i], T)[:n+1]
-    return T, N
+    front_knot = np.ones(3) * time_src[0]
+    back_knot = np.ones(3) * time_src[n]
+    T = time_src 
+    # T = np.concatenate((front_knot, time_src, back_knot))
+    # T = np.concatenate((np.arange(start, end, dt), np.asarray([end])))
+    # N = np.zeros((n + 1, n + 1))
+    # for i in range(n + 1):
+        # N[i] = n_coeff(T[i], T[3:])[:n+1]
+    return T
 
-def deBoor(t, T, P):
+"""def deBoor(t, T, P):
+    T = np.concatenate((T, T[T.size - 1] * np.ones(6)))
+    # P = np.concatenate((P, np.zeros((3, 6))))
     k = u(t)
     h = p
     s = 0
     if t == T[k]:
         h = p - 1
         s = 1
-    ctr_pts = np.zeros((k+2, h+2, dim))
+    ctr_pts = np.zeros((k+5, h+5, dim))
     
     j = k - s
+
     while (j >= max(0, k - p)):
         ctr_pts[j][0] = P[j]
         j -= 1
@@ -63,26 +109,93 @@ def deBoor(t, T, P):
     for _ in range(h):
         r = _ + 1
         i = max(0, k - p + r)
-        while (i <= k - s):
-            temp = (t - T[i]) * 1.0 / (T[i+p-r+1] - T[i])
-            ctr_pts[i][r] = (1.0 - temp) * ctr_pts[i-1][r-1] + temp * ctr_pts[i][r-1]
-            i += 1
+        
+00f0ad9c-27c0-8bdb-1db1-2610fd01a788_testing_pose.npy        while (i <= k - s and i+p-r+1 < T.size):
+            if T[i+p-r+1] == T[i]:
+                i += 1
+            else:
+                temp = (t - T[i]) * 1.0 / (T[i+p-r+1] - T[i])
+                ctr_pts[i][r] = (1.0 - temp) * ctr_pts[i-1][r-1] + temp * ctr_pts[i][r-1]
+                i += 1
 
-    return ctr_pts[k-s][p-s]
+    return ctr_pts[k-s][p-s]"""
 
-def testing(fsrc, fgt, log, T, P):
-    src = np.load(fsrc)[(p+2)*4:]
-    gt = np.load(fgt)[(p+2)*4:, :3]
+"""def Nmat(t, T, k):
+    i = u(t)
+    N = np.zeros((n + 2, k + 2))
+    DP = np.zeros(k)
+    DM = DP
+    N[1, 1] = 1
+    s = 1
+    while s <= k - 1:
+        DP[s] = T[i+s] - t
+        DM[s] = t - T[i-s+1]
+        N[1, s+1] = 0
+        r = 1
+        while r <= s:
+            tmp = 0
+            if DP[r] + DM[s + 1 -r] != 0:
+                tmp = N[r, s] / (DP[r] + DM[s + 1 - r])
+            N[r, s+1] = N[r, s+1] + DP[r] * tmp
+            N[r+1, s+1] = DM[s+1-r] * tmp
+            r += 1
+        s += 1
+    return N
+
+def deBoor(t, T, P):
+    k = p + 1 # p + 1 or p; try both
+    N = Nmat(t, T, k)
+    ans = np.zeros(dim)
+    i = max(0, u(t) - k + 1)
+    while i <= u(t):
+        ans += P[i] * N[i, k]
+        i += 1
+    return ans
+"""
+
+def deBoor(t, T, P):
+    k = u(t)
+    d = [P[j + k - p] for j in range(0, p+1)]
+    for r in range(1, p+1):
+        for j in range(p, r-1, -1):
+            tmp = 0
+            if T[j+1+k-r] != T[j+k-p]:
+                tmp = (t - T[j + k - p]) * 1.0 / (T[j + 1 + k -r] - T[j + k - p])
+            d[j] = (1.0 - tmp) * d[j - 1] + tmp * 1.0 * d[j]
+    return d[p]
+
+def calc(t, T, P):
+    k = u(t)
+    coeff = np.asarray([[-1, 3, -3, 1], [3, -6, 3, 0], [-3, 0, 3, 0], [1, 4, 1, 0]]) / 6.0
+    tmat = np.asarray([t ** 3, t ** 2, t, 1])
+    pmat = np.asarray([P[k], P[k+1], P[k+2], P[k+3]])
+    return np.matmul(tmat, np.matmul(coeff, pmat))
+
+def testing(fsrc, fgt, log, T, P, av, ind, out):
+    src = fsrc
+    gt = fgt[..., :dim]
+    # src = fsrc
+    # gt = fgt
     loss = 0.0
     pred = gt
-    for i in range(src.size):
-        estimate = deBoor(src[i], T, P)
-        loss += np.linalg.norm(np.subtract(estimate, gt[i]))
-        pred[i] = estimate
-    print('Finished testing with average error %.6f.' % (loss/src.size))
-    output = log + '_cubic_b-spline_predictions.npy'
-    print('Dumping data to ' + output)
-    np.save(output, pred)
+    if src.size != 0:
+        for i in range(src.size):
+            estimate = deBoor(src[i], T, P)
+            # estimate = calc(src[i], T, P)
+            # print(estimate)
+            # if np.isnan(np.linalg.norm(np.subtract(estimate, gt[i]))):
+                # print(estimate)
+            loss += np.linalg.norm(np.subtract(estimate, gt[i]))
+            # print(pred[i].shape)
+            # print(estimate.shape)
+            pred[i] = estimate
+        # print(loss)
+        # print(src.size)
+        print('Finished testing with average error %.6f.' % (loss/src.size))
+        output = 'pose_data/' + out + '/' + log + '/' + log + '_%.6d_cubic_b-spline_predictions.npy' % ind
+        # output = log + '_cubic_b-spline_predictions.npy'
+        print('Dumping data to ' + output)
+        np.save(output, pred + av)
 
 def parse_args(argv):
     parser = argparse.ArgumentParser()
@@ -95,6 +208,11 @@ def parse_args(argv):
     args = parser.parse_args(argv)
     return args
 
+def relative(trs, trt, tss, tst):
+    tmp1 = trs[0]
+    tmp2 = trt[0]
+    return trs - tmp1, trt - tmp2, tss - tmp1, tst - tmp2
+
 def main(argv=None):
     args = parse_args(argv)
     log = args.log_id
@@ -102,7 +220,7 @@ def main(argv=None):
     tr_tgt = args.train_tgt
     tst_src = args.test_src
     tst_tgt = args.test_tgt
-    if log == 'None':
+    """if log == 'None':
         if tr_src == 'None':
             print('Missing training input data')
             exit()
@@ -122,12 +240,59 @@ def main(argv=None):
         tst_tgt = log + '_testing_pose.npy'
     
     T, N = setup(tr_src) # timestamps of all the control points and the coefficient matrix
-    D = np.load(tr_tgt)[..., :3]
-    dim = D[0].size
+    D = np.load(tr_tgt)[..., :dim]
+    # dim = D[0].size
     # P = np.matmul(np.linalg.inv(N), D) # control point array
     P = np.linalg.lstsq(N, D)[0]
     print(P)
-    testing(tst_src, tst_tgt, log, T, P)
+    testing(tst_src, tst_tgt, log, T, P)"""
+
+    dir_lst = np.asarray(['1_0.1_50_100'])
+    spec_lst = np.asarray([[1, 0.1, 50, 100]])
+
+    for lg in log_list:
+        for j in range(dir_lst.size):
+            tr_src = 'pose_data/' + dir_lst[j] + '/' + lg + '/' + lg + '_training_time.npy'   
+            tr_tgt = 'pose_data/' + dir_lst[j] + '/' + lg + '/' + lg + '_training_pose.npy'
+            tst_src = 'pose_data/' + dir_lst[j] + '/' + lg + '/' + lg + '_testing_time.npy'
+            tst_tgt = 'pose_data/' + dir_lst[j] + '/' + lg + '/' + lg + '_testing_pose.npy'
+            trs_ = np.load(tr_src)
+            trt_ = np.load(tr_tgt)
+            tss_ = np.load(tst_src)
+            tst_ = np.load(tst_tgt)
+            duration = trs_.size
+            tmp = (int)(spec_lst[j][0] * spec_lst[j][2])
+            tmp2 = (int)(spec_lst[j][0] * spec_lst[j][3])
+            tmp3 = (int)(spec_lst[j][1] * spec_lst[j][3])
+            for i in range(min((int)(duration/tmp), (int)(tss_.size/tmp2))):
+                tr_ind = min((i+1)*tmp, duration-1)
+                trs = trs_[i*tmp:tr_ind]
+                trt = trt_[i*tmp:tr_ind]
+
+                tst_st = max(0, i*tmp2)
+                tst_lst = min(tss_.size-1, (i+1)*tmp2)
+                tss = tss_[tst_st:tst_lst]
+                tst = tst_[tst_st:tst_lst]
+                
+                av = trt[0, :dim]
+                trs, trt, tss, tst = relative(trs, trt, tss, tst)
+
+                # T_, N = setup(trs)
+                T_ = setup(trs)
+                D = trt[..., :dim]
+                # P = D
+                T = np.concatenate((T_[0] * np.ones(3), T_, T_[n] * np.ones(3)))
+                P = np.vstack((D[0], D[0], D[0], D, D[n], D[n], D[n]))
+                # D[0] *= 2
+                # D[D.size/dim - 1] *= 2
+                # print(N.shape)
+                # print(trt[..., :dim].shape)
+                # P_ = la.lstsq(N, D)[0]
+                
+                # P = np.vstack((D[0], D, D[n], D[n], D[n]))
+                # print(P)
+                testing(tss, tst[..., :dim], lg, T, P, av, i, dir_lst[j])
+                # testing(trs[i*tmp:tr_ind], trt[i*tmp:tr_ind, :dim], lg, T, P, i, dir_lst[j])
 
 if __name__ == '__main__':
     main()
