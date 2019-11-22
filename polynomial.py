@@ -3,11 +3,43 @@ import numpy as np
 import numpy.linalg as la
 import numpy.polynomial.polynomial as poly
 import argparse
+import numpy.core.numeric as NX
 
 warnings.filterwarnings('ignore', message='RankWarning')
 warnings.filterwarnings('ignore', message='Polyfit may be poorly conditioned')
 
-log_list = []
+log_list = np.array(['00f0ad9c-27c0-8bdb-1db1-2610fd01a788'])
+"""'0224916e-bb15-41bb-ef72-38a39923554a',
+'02990aeb-3649-3188-18b1-ffc47c03185c',
+'03548b25-b4bd-d3cb-7b21-a56887607ae8',
+'03d2ab0f-4dbc-8863-43cd-9071ed265189',
+'05cd1dc7-d73d-ed63-00e7-dbd51c900184',
+'067e62dc-fe8e-4109-eee9-8a70e2f037bc',
+'0696e5c3-9b1b-2754-1693-4d3c35e2c5c5',
+'0711a84c-edb3-eded-8fda-1fed9aeda4be',
+'082788fe-461e-4d30-fa94-efed1d508192',
+'08abc439-72fa-4c86-f266-954226e45877',
+'08c94aea-2b8d-40f3-d90b-8f6a732a296b',
+'09d9227e-08bd-dfc1-1a75-33a1953c2cc3',
+'0d367004-cd84-4946-fc72-a40d7c0aedb3',
+'0df8eef4-4352-86f5-07c3-317ba54348b4',
+'0f88ddc8-c2c0-4f44-1fc1-4e59310912be',
+'10f8e3b9-5ab7-5e56-97e0-4701a56965e3',
+'15ecd6e5-495e-747e-9d79-ebe6806f4fd3',
+'18257908-e088-4a08-c6cb-c7bbd2a47922',
+'239b269e-e15b-c7f6-3d26-e4df89497014',
+'27581d62-01d2-5cc6-462f-4440435f9fc5',
+'286310ad-bb7e-cefd-ebdf-c6d9e4715417',
+'2b998b1d-50b7-9d81-a898-7a44f0230572',
+'2bd6e8d5-112f-7ea7-c248-ae8507429e38',
+'41e6c9f9-f1bb-5cfb-e923-eddd05b08464',
+432aa902-c28d-9e73-a6f5-31934a2f95d3',
+'43677200-e6f0-2051-5e6a-5e6fc3851fde',
+'4763a435-5887-4459-ee65-fb6075217a35',
+'4853043c-065a-462f-c9f0-67f8263a0eb6',
+'5da97c51-65cd-a987-dffb-8b7599aa0c0b',
+'632c320b-1b9e-de97-663e-1f78d0082617'])
+"""
 def evaluate(coeff, x):
     # print(coeff)
     dim = np.size(coeff, 1)
@@ -29,70 +61,73 @@ def vandermonde(x, deg):
 
     return np.moveaxis(van, 0, -1)
 
-def ofit(x, y, deg, rcond=None, full=False, w=None):
-    x = np.asarray(x) + 0.0
-    y = np.asarray(y) + 0.0
-    deg = np.asarray(deg)
+def ofit(x, y, deg, rcond=None, full=False, w=None, cov=False): # numpy/polynomial.py
 
-    if deg.ndim > 1 or deg.dtype.kind not in 'iu' or deg.size == 0:
-        raise TypeError('deg must be an int or non-empty 1-D array of int')
-    if deg.min() < 0:
-        raise ValueError('expected deg >= 0')
+    order = int(deg) + 1
+    x = NX.asarray(x) + 0.0
+    y = NX.asarray(y) + 0.0
+
+    # check arguments.
+    if deg < 0:
+        raise ValueError("expected deg >= 0")
     if x.ndim != 1:
-        raise TypeError('expected 1D vector for x')
+        raise TypeError("expected 1D vector for x")
     if x.size == 0:
-        raise TypeError('expected non-empty vector for x')
+        raise TypeError("expected non-empty vector for x")
     if y.ndim < 1 or y.ndim > 2:
-        raise TypeError('expected 1D or 2D array for y')
-    if len(x) != len(y):
-        raise TypeError('expected x and y to have same length')
+        raise TypeError("expected 1D or 2D array for y")
+    if x.shape[0] != y.shape[0]:
+        raise TypeError("expected x and y to have same length")
 
-    if deg.ndim == 0:
-        lmax = deg
-        order = lmax + 1
-        van = poly.polyvander(x, lmax)
-    else:
-        deg = np.sort(deg)
-        lmax = deg(-1)
-        order = len(deg)
-        van = poly.polyvander(x, lmax)[:, deg]
-
-    lhs = van.T
-    rhs = y.T
-    if w is not None:
-        w = np.asarray(w) + 0.0
-        if w.ndim != 1:
-            raise TypeError('expected 1D vector for w')
-        if len(x) != len(w):
-            raise TypeError('expected x and w to have same length')
-        lhs = lhs * w
-        rhs = rhs * w
-
+    # set rcond
     if rcond is None:
-        rcond = len(x) * np.finfo(x.dtype).eps
-    if issubclass(lhs.dtype.type, np.complexfloating):
-        scl = np.sqrt((np.square(lhs.real) + np.square(lhs.imag)).sum(1))
-    else:
-        scl = np.sqrt(np.square(lhs).sum(1))
-    scl[scl == 0] = 1
+        rcond = len(x)*np.finfo(x.dtype).eps
 
-    c, resids, rank, s = la.lstsq(lhs.T/scl, rhs.T, rcond)
-    c = (c.T/scl).T
+    # set up least squares equation for powers of x
+    lhs = poly.polyvander(x, order)
+    rhs = y
 
-    if deg.ndim > 0:
-        if c.ndim == 2:
-            cc = np.zeros((lmax+1, c.shape[1]), dtype=c.dtype)
+    # apply weighting
+    if w is not None:
+        w = NX.asarray(w) + 0.0
+        if w.ndim != 1:
+            raise TypeError("expected a 1-d array for weights")
+        if w.shape[0] != y.shape[0]:
+            raise TypeError("expected w and y to have the same length")
+        lhs *= w[:, NX.newaxis]
+        if rhs.ndim == 2:
+            rhs *= w[:, NX.newaxis]
         else:
-            cc = np.zeros(lmax+1, dtype=c.dtype)
-        cc[deg] = c
-        c = cc
+            rhs *= w
 
-    if rank != order and not full:
-        msg = 'The fit may be poorly conditioned'
-        warnings.warn(msg, RankWarning, stacklevel=2)
-    
+    # scale lhs to improve condition number and solve
+    scale = NX.sqrt((lhs*lhs).sum(axis=0))
+    lhs /= scale
+    c, resids, rank, s = la.lstsq(lhs, rhs, rcond)
+    c = (c.T/scale).T  # broadcast scale coefficients
+
+    # warn on rank reduction, which indicates an ill conditioned matrix
+
     if full:
-        return c, [resids, rank, s, rcond]
+        return c, resids, rank, s, rcond
+    elif cov:
+        Vbase = inv(dot(lhs.T, lhs))
+        Vbase /= NX.outer(scale, scale)
+        if cov == "unscaled":
+            fac = 1
+        else:
+            if len(x) <= order:
+                raise ValueError("the number of data points must exceed order "
+                                 "to scale the covariance matrix")
+            # note, this used to be: fac = resids / (len(x) - order - 2.0)
+            # it was deciced that the "- 2" (originally justified by "Bayesian
+            # uncertainty analysis") is not was the user expects
+            # (see gh-11196 and gh-11197)
+            fac = resids / (len(x) - order)
+        if y.ndim == 1:
+            return c, Vbase * fac
+        else:
+            return c, Vbase[:,:, NX.newaxis] * fac
     else:
         return c
 
